@@ -94,3 +94,61 @@ class VisualGauge extends StatelessWidget {
     );
   }
 }
+
+// NEW: Share and Brag Card for organic engagement
+class ShareBragCard extends StatelessWidget {
+  final String displaySnippet;
+  final VoidCallback onShare;
+
+  const ShareBragCard({super.key, required this.displaySnippet, required this.onShare});
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+        elevation: 2,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        child: Container(
+            decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(16),
+                gradient: LinearGradient(
+                  colors: [Colors.purple.shade50, Colors.pink.shade50],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                )
+            ),
+            padding: const EdgeInsets.all(20),
+            child: Column(
+              children: [
+                Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(Icons.auto_awesome, color: Colors.purple.shade600),
+                      const SizedBox(width: 8),
+                      Text('Growth Milestone 🌟', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: Colors.purple.shade800)),
+                    ]
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  displaySnippet,
+                  textAlign: TextAlign.center,
+                  style: TextStyle(fontSize: 15, color: Colors.purple.shade900, height: 1.4, fontWeight: FontWeight.w500),
+                ),
+                const SizedBox(height: 16),
+                ElevatedButton.icon(
+                  onPressed: onShare,
+                  icon: const Icon(Icons.share_rounded),
+                  label: const Text('Share with Friends'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.purple.shade600,
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
+                    padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
+                    elevation: 3,
+                  ),
+                )
+              ],
+            )
+        )
+    );
+  }
+}

@@ -1,12 +1,16 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:shared_preferences/shared_preferences.dart';
+import 'package:share_plus/share_plus.dart';
 
+import '../models/assessment_data.dart';
+import '../services/growth_engine.dart';
+import '../services/storage_service.dart';
 import '../widgets/custom_drawer.dart';
-import '../widgets/growth_cards.dart';
 import '../widgets/profile_bar.dart';
 import '../widgets/input_form.dart';
+import '../widgets/results_section.dart';
+import '../dialogs/profile_dialogs.dart';
 
 class GrowthCalculatorScreen extends StatefulWidget {
   const GrowthCalculatorScreen({super.key});
@@ -17,13 +21,14 @@ class GrowthCalculatorScreen extends StatefulWidget {
 
 class _GrowthCalculatorScreenState extends State<GrowthCalculatorScreen> {
   String _system = 'metric';
-  String _ageUnit = 'months';
+  String _calcMode = 'full';
 
   List<Map<String, dynamic>> _profiles = [];
   String? _activeProfileId;
   String _quickCheckGender = 'boys';
 
-  final TextEditingController _ageController = TextEditingController();
+  final TextEditingController _yearsController = TextEditingController();
+  final TextEditingController _monthsController = TextEditingController();
   final TextEditingController _weightController = TextEditingController();
   final TextEditingController _heightController = TextEditingController();
 
@@ -31,15 +36,8 @@ class _GrowthCalculatorScreenState extends State<GrowthCalculatorScreen> {
   bool _isLoading = true;
   bool _hasCalculated = false;
 
-  double? _inputWeight;
-  double? _inputHeight;
-  String _weightStatus = '';
-  String _heightStatus = '';
-
-  double _idealWeightMin = 0, _idealWeightMax = 0, _idealWeightTarget = 0;
-  double _idealHeightMin = 0, _idealHeightMax = 0, _idealHeightTarget = 0;
-  double _p3Weight = 0, _p97Weight = 0;
-  double _p3Height = 0, _p97Height = 0;
+  // The 14 variables have been replaced by this 1 single object!
+  AssessmentData? _currentAssessment;
 
   @override
   void initState() {
@@ -50,33 +48,56 @@ class _GrowthCalculatorScreenState extends State<GrowthCalculatorScreen> {
   Future<void> _initializeApp() async {
     await _loadSettingsAndProfiles();
     await _loadGrowthDataBundle();
+    _checkFirstLaunch();
+  }
+
+  Future<void> _checkFirstLaunch() async {
+    bool isFirst = await StorageService.checkAndSetFirstLaunch();
+    if (isFirst) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        ProfileDialogs.showWelcomeProfile(context, onCreate: _saveProfileChanges);
+      });
+    }
   }
 
   Future<void> _loadSettingsAndProfiles() async {
-    final prefs = await SharedPreferences.getInstance();
-
-    _system = prefs.getString('setting_system') ?? 'metric';
-    _ageUnit = prefs.getString('setting_age_unit') ?? 'months';
-
-    List<String> rawProfiles = prefs.getStringList('ibhwc_profiles') ?? [];
+    _system = await StorageService.getSystemSetting();
+    List<Map<String, dynamic>> loadedProfiles = await StorageService.getProfiles();
+    String? activeId = await StorageService.getActiveProfileId();
 
     setState(() {
-      _profiles = rawProfiles.map((e) => jsonDecode(e) as Map<String, dynamic>).toList();
-      _activeProfileId = prefs.getString('active_profile_id');
-
+      _profiles = loadedProfiles;
+      _activeProfileId = activeId;
       if (_activeProfileId != null && !_profiles.any((p) => p['id'] == _activeProfileId)) {
         _activeProfileId = null;
       }
     });
+    _updateAgeFromProfile();
+  }
+
+  void _updateAgeFromProfile() {
+    if (_activeProfileId != null) {
+      final profile = _profiles.firstWhere((p) => p['id'] == _activeProfileId);
+      if (profile.containsKey('birthdate') && profile['birthdate'] != null) {
+        DateTime dob = DateTime.parse(profile['birthdate']);
+        DateTime now = DateTime.now();
+        int years = now.year - dob.year;
+        int months = now.month - dob.month;
+        if (now.day < dob.day) months--;
+        if (months < 0) { years--; months += 12; }
+        _yearsController.text = years.toString();
+        _monthsController.text = months.toString();
+      }
+    } else {
+      _yearsController.clear();
+      _monthsController.clear();
+    }
   }
 
   Future<void> _loadGrowthDataBundle() async {
     try {
       final String jsonString = await rootBundle.loadString('assets/iap_data.json');
-      setState(() {
-        _growthData = jsonDecode(jsonString);
-        _isLoading = false;
-      });
+      setState(() { _growthData = jsonDecode(jsonString); _isLoading = false; });
     } catch (e) {
       setState(() => _isLoading = false);
     }
@@ -87,265 +108,126 @@ class _GrowthCalculatorScreenState extends State<GrowthCalculatorScreen> {
     return _profiles.firstWhere((p) => p['id'] == _activeProfileId)['gender'];
   }
 
-  String _formatWeight(double kgVal) => _system == 'imperial' ? '${(kgVal * 2.20462).toStringAsFixed(1)} lbs' : '${kgVal.toStringAsFixed(1)} kg';
-  String _formatHeight(double cmVal) => _system == 'imperial' ? '${(cmVal / 2.54).toStringAsFixed(1)} in' : '${cmVal.toStringAsFixed(1)} cm';
-
   void _calculateMetrics() {
     FocusScope.of(context).unfocus();
     if (_growthData == null) return;
 
-    final double? rawAge = double.tryParse(_ageController.text);
-    final double? rawWeight = double.tryParse(_weightController.text);
-    final double? rawHeight = double.tryParse(_heightController.text);
+    final int years = int.tryParse(_yearsController.text) ?? 0;
+    final int months = int.tryParse(_monthsController.text) ?? 0;
+    final double? rawWeight = _calcMode != 'ideal_weight' ? double.tryParse(_weightController.text) : null;
+    final double? rawHeight = _calcMode != 'ideal_height' ? double.tryParse(_heightController.text) : null;
 
-    if (rawAge == null) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('⚠️ Please enter the child\'s age.')));
-      return;
+    // Strict UI Validation Logic
+    if (_yearsController.text.isEmpty && _monthsController.text.isEmpty) { ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('⚠️ Please enter the child\'s age in years and/or months.'))); return; }
+    if (months > 11) { ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('⚠️ Months should be between 0 and 11. Increase the Year instead.'))); return; }
+    if (_calcMode == 'full' && (rawWeight == null || rawHeight == null)) { ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('⚠️ Please provide both weight and height for a full check.'))); return; }
+    if (_calcMode == 'ideal_height' && rawWeight == null) { ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('⚠️ Please enter the weight to find the ideal height.'))); return; }
+    if (_calcMode == 'ideal_weight' && rawHeight == null) { ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('⚠️ Please enter the height to find the ideal weight.'))); return; }
+
+    double ageInYears = years + (months / 12.0);
+    final int ageMonths = (years * 12) + months;
+
+    if (ageInYears < 0 || ageInYears > 18.5) { ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('⚠️ This app uses WHO/IAP data strictly for children aged 0 to 18 years.'))); return; }
+
+    // Execute Math Engine
+    try {
+      final AssessmentData result = GrowthEngine.evaluate(
+        growthData: _growthData!,
+        gender: _currentGender,
+        ageMonths: ageMonths,
+        rawWeight: rawWeight,
+        rawHeight: rawHeight,
+        system: _system,
+      );
+
+      setState(() {
+        _hasCalculated = true;
+        _currentAssessment = result;
+      });
+    } catch (errorMsg) {
+      // Catch validation errors thrown by the Engine
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(errorMsg.toString())));
     }
+  }
 
-    double ageInYears = _ageUnit == 'months' ? (rawAge / 12) : rawAge;
-    if (ageInYears < 0 || ageInYears > 18.5) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('⚠️ This app uses WHO/IAP data which is strictly for children aged 0 to 18 years.')));
-      return;
-    }
+  void _shareResults() {
+    if (_currentAssessment == null) return;
+    String childName = _activeProfileId != null ? _profiles.firstWhere((p) => p['id'] == _activeProfileId)['name'] : 'My child';
 
-    double? calcWeightKg = rawWeight;
-    double? calcHeightCm = rawHeight;
-
-    if (_system == 'imperial') {
-      if (calcWeightKg != null) calcWeightKg = rawWeight! / 2.20462;
-      if (calcHeightCm != null) calcHeightCm = rawHeight! * 2.54;
-    }
-
-    if (calcWeightKg != null && (calcWeightKg < 1 || calcWeightKg > 150)) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('⚠️ Please enter a realistic weight.')));
-      return;
-    }
-
-    if (calcHeightCm != null && (calcHeightCm < 30 || calcHeightCm > 250)) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('⚠️ Please enter a realistic height.')));
-      return;
-    }
-
-    final int ageMonths = (ageInYears * 12).round();
-
-    final List<dynamic> weightChart = _growthData![_currentGender]['weight'];
-    final List<dynamic> heightChart = _growthData![_currentGender]['height'];
-
-    final matchedWeightRow = weightChart.firstWhere((row) => row['age_months'] >= ageMonths, orElse: () => weightChart.last);
-    final matchedHeightRow = heightChart.firstWhere((row) => row['age_months'] >= ageMonths, orElse: () => heightChart.last);
-
-    setState(() {
-      _hasCalculated = true;
-      _inputWeight = rawWeight;
-      _inputHeight = rawHeight;
-
-      _p3Weight = (matchedWeightRow['p3'] as num).toDouble();
-      _idealWeightMin = (matchedWeightRow['p15'] as num).toDouble();
-      _idealWeightTarget = (matchedWeightRow['p50'] as num).toDouble();
-      _idealWeightMax = (matchedWeightRow['p85'] as num).toDouble();
-      _p97Weight = (matchedWeightRow['p97'] as num).toDouble();
-
-      _p3Height = (matchedHeightRow['p3'] as num).toDouble();
-      _idealHeightMin = (matchedHeightRow['p15'] as num).toDouble();
-      _idealHeightTarget = (matchedHeightRow['p50'] as num).toDouble();
-      _idealHeightMax = (matchedHeightRow['p85'] as num).toDouble();
-      _p97Height = (matchedHeightRow['p97'] as num).toDouble();
-
-      if (calcWeightKg != null) {
-        if (calcWeightKg < _p3Weight) _weightStatus = 'Needs Doctor\'s Advice (Very Low)';
-        else if (calcWeightKg < _idealWeightMin) _weightStatus = 'On the Lighter Side';
-        else if (calcWeightKg <= _idealWeightMax) _weightStatus = 'Perfectly Healthy Weight 🌟';
-        else if (calcWeightKg <= _p97Weight) _weightStatus = 'On the Heavier Side';
-        else _weightStatus = 'Needs Doctor\'s Advice (High Weight)';
-      }
-
-      if (calcHeightCm != null) {
-        if (calcHeightCm < _p3Height) _heightStatus = 'Needs Doctor\'s Advice (Very Short)';
-        else if (calcHeightCm < _idealHeightMin) _heightStatus = 'On the Shorter Side';
-        else if (calcHeightCm <= _idealHeightMax) _heightStatus = 'Perfectly Healthy Height 🌟';
-        else if (calcHeightCm <= _p97Height) _heightStatus = 'Taller than Average';
-        else _heightStatus = 'Very Tall for their Age';
-      }
-    });
+    String msg = GrowthEngine.generateBragMessage(
+      data: _currentAssessment!,
+      childName: childName,
+      gender: _currentGender,
+      system: _system,
+      isForSocialShare: true,
+    );
+    Share.share(msg, subject: 'Baby Growth Milestone!');
   }
 
   Future<void> _saveRecord() async {
-    if (_inputWeight == null || _inputHeight == null || _ageController.text.isEmpty) return;
-
+    if (_currentAssessment == null || _currentAssessment!.inputWeight == null || _currentAssessment!.inputHeight == null) return;
+    if (_yearsController.text.isEmpty && _monthsController.text.isEmpty) return;
     if (_activeProfileId == null) {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Please select or create a profile at the top to save.')));
       return;
     }
 
-    final prefs = await SharedPreferences.getInstance();
-    List<String> history = prefs.getStringList('ibhwc_diary') ?? [];
+    List<Map<String, dynamic>> history = await StorageService.getDiary();
 
-    double saveWeightKg = _system == 'imperial' ? (_inputWeight! / 2.20462) : _inputWeight!;
-    double saveHeightCm = _system == 'imperial' ? (_inputHeight! * 2.54) : _inputHeight!;
-    double saveAgeYears = _ageUnit == 'months' ? (double.parse(_ageController.text) / 12) : double.parse(_ageController.text);
+    double saveWeightKg = _system == 'imperial' ? (_currentAssessment!.inputWeight! / 2.20462) : _currentAssessment!.inputWeight!;
+    double saveHeightCm = _system == 'imperial' ? (_currentAssessment!.inputHeight! * 2.54) : _currentAssessment!.inputHeight!;
+    final int years = int.tryParse(_yearsController.text) ?? 0;
+    final int months = int.tryParse(_monthsController.text) ?? 0;
+    double saveAgeYears = years + (months / 12.0);
 
     final profile = _profiles.firstWhere((p) => p['id'] == _activeProfileId);
     final today = DateTime.now();
-    bool isDuplicate = false;
 
-    for (var entry in history) {
-      final log = jsonDecode(entry);
+    bool isDuplicate = history.any((log) {
       final logDate = DateTime.parse(log['date']);
-
-      if (log['profileId'] == _activeProfileId &&
-          (log['age'] as num).toDouble() == saveAgeYears &&
+      return log['profileId'] == _activeProfileId &&
+          (log['age'] as num).toDouble().toStringAsFixed(2) == saveAgeYears.toStringAsFixed(2) &&
           (log['weight'] as num).toDouble() == saveWeightKg &&
           (log['height'] as num).toDouble() == saveHeightCm &&
-          logDate.year == today.year && logDate.month == today.month && logDate.day == today.day) {
-        isDuplicate = true;
-        break;
-      }
-    }
+          logDate.year == today.year && logDate.month == today.month && logDate.day == today.day;
+    });
 
     if (isDuplicate) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: const Text('⚠️ This exact reading is already saved today.'), backgroundColor: Colors.orange.shade700, behavior: SnackBarBehavior.floating));
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: const Text('⚠️ This exact reading is already saved today.'), backgroundColor: Colors.orange.shade700));
       return;
     }
 
-    final newLog = {
-      'id': DateTime.now().millisecondsSinceEpoch.toString(),
-      'profileId': _activeProfileId,
-      'name': profile['name'],
-      'gender': profile['gender'],
-      'date': DateTime.now().toIso8601String(),
-      'age': saveAgeYears,
-      'weight': saveWeightKg,
-      'height': saveHeightCm,
-    };
+    history.add({'id': DateTime.now().millisecondsSinceEpoch.toString(), 'profileId': _activeProfileId, 'name': profile['name'], 'gender': profile['gender'], 'date': DateTime.now().toIso8601String(), 'age': saveAgeYears, 'weight': saveWeightKg, 'height': saveHeightCm});
+    await StorageService.saveDiary(history);
 
-    history.add(jsonEncode(newLog));
-    await prefs.setStringList('ibhwc_diary', history);
-
-    if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('✅ Saved to ${profile['name']}\'s Diary!'), backgroundColor: Colors.green.shade600, behavior: SnackBarBehavior.floating));
+    if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('✅ Saved to ${profile['name']}\'s Diary!'), backgroundColor: Colors.green.shade600));
   }
 
-  void _showCreateProfileDialog() {
-    String tempName = '';
-    String tempGender = 'boys';
+  Future<void> _saveProfileChanges(String name, String gender, DateTime date, {String? existingId}) async {
+    if (existingId == null) {
+      final newProfile = {'id': DateTime.now().millisecondsSinceEpoch.toString(), 'name': name, 'gender': gender, 'birthdate': date.toIso8601String()};
+      _profiles.add(newProfile);
+      await StorageService.setActiveProfileId(newProfile['id']!);
+      _activeProfileId = newProfile['id'];
+    } else {
+      final idx = _profiles.indexWhere((p) => p['id'] == existingId);
+      _profiles[idx]['name'] = name;
+      _profiles[idx]['gender'] = gender;
+      _profiles[idx]['birthdate'] = date.toIso8601String();
 
-    showDialog(
-        context: context,
-        builder: (context) {
-          return StatefulBuilder(
-              builder: (context, setStateDialog) {
-                return AlertDialog(
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-                  title: const Text('New Child Profile', style: TextStyle(fontWeight: FontWeight.bold)),
-                  content: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      TextField(decoration: InputDecoration(labelText: 'Child\'s Name', border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)), filled: true, fillColor: Colors.grey.shade50), onChanged: (val) => tempName = val),
-                      const SizedBox(height: 16),
-                      SegmentedButton<String>(
-                        segments: const [ButtonSegment(value: 'boys', label: Text('Boy'), icon: Icon(Icons.boy)), ButtonSegment(value: 'girls', label: Text('Girl'), icon: Icon(Icons.girl))],
-                        selected: {tempGender},
-                        onSelectionChanged: (Set<String> newSelection) => setStateDialog(() => tempGender = newSelection.first),
-                      ),
-                    ],
-                  ),
-                  actions: [
-                    TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
-                    ElevatedButton(
-                      onPressed: () async {
-                        if (tempName.trim().isEmpty) return;
-                        final newProfile = {'id': DateTime.now().millisecondsSinceEpoch.toString(), 'name': tempName.trim(), 'gender': tempGender};
-                        final prefs = await SharedPreferences.getInstance();
-                        _profiles.add(newProfile);
-                        await prefs.setStringList('ibhwc_profiles', _profiles.map((p) => jsonEncode(p)).toList());
-                        await prefs.setString('active_profile_id', newProfile['id']!);
-                        setState(() { _activeProfileId = newProfile['id']; _hasCalculated = false; });
-                        Navigator.pop(context);
-                      },
-                      style: ElevatedButton.styleFrom(backgroundColor: Theme.of(context).colorScheme.primary, foregroundColor: Colors.white),
-                      child: const Text('Create'),
-                    ),
-                  ],
-                );
-              }
-          );
+      List<Map<String, dynamic>> diary = await StorageService.getDiary();
+      for (var log in diary) {
+        if (log['profileId'] == existingId) {
+          log['name'] = name;
+          log['gender'] = gender;
         }
-    );
-  }
+      }
+      await StorageService.saveDiary(diary);
+    }
 
-  void _showEditProfileDialog(String profileId) {
-    final profileIndex = _profiles.indexWhere((p) => p['id'] == profileId);
-    if (profileIndex == -1) return;
-
-    String tempName = _profiles[profileIndex]['name'];
-    String tempGender = _profiles[profileIndex]['gender'];
-
-    showDialog(
-        context: context,
-        builder: (context) {
-          return StatefulBuilder(
-              builder: (context, setStateDialog) {
-                return AlertDialog(
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-                  title: const Text('Edit Profile', style: TextStyle(fontWeight: FontWeight.bold)),
-                  content: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      TextFormField(
-                          initialValue: tempName,
-                          decoration: InputDecoration(labelText: 'Child\'s Name', border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)), filled: true, fillColor: Colors.grey.shade50),
-                          onChanged: (val) => tempName = val
-                      ),
-                      const SizedBox(height: 16),
-                      SegmentedButton<String>(
-                        segments: const [ButtonSegment(value: 'boys', label: Text('Boy'), icon: Icon(Icons.boy)), ButtonSegment(value: 'girls', label: Text('Girl'), icon: Icon(Icons.girl))],
-                        selected: {tempGender},
-                        onSelectionChanged: (Set<String> newSelection) => setStateDialog(() => tempGender = newSelection.first),
-                      ),
-                      const SizedBox(height: 24),
-                      OutlinedButton.icon(
-                        onPressed: () => _confirmDeleteProfile(profileId),
-                        icon: const Icon(Icons.delete_forever, color: Colors.red),
-                        label: const Text('Delete Profile', style: TextStyle(color: Colors.red)),
-                        style: OutlinedButton.styleFrom(side: const BorderSide(color: Colors.red), minimumSize: const Size.fromHeight(45)),
-                      )
-                    ],
-                  ),
-                  actions: [
-                    TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
-                    ElevatedButton(
-                      onPressed: () async {
-                        if (tempName.trim().isEmpty) return;
-
-                        final prefs = await SharedPreferences.getInstance();
-
-                        _profiles[profileIndex]['name'] = tempName.trim();
-                        _profiles[profileIndex]['gender'] = tempGender;
-                        await prefs.setStringList('ibhwc_profiles', _profiles.map((p) => jsonEncode(p)).toList());
-
-                        List<String> rawDiary = prefs.getStringList('ibhwc_diary') ?? [];
-                        List<String> updatedDiary = rawDiary.map((entry) {
-                          final log = jsonDecode(entry) as Map<String, dynamic>;
-                          if (log['profileId'] == profileId) {
-                            log['name'] = tempName.trim();
-                            log['gender'] = tempGender;
-                          }
-                          return jsonEncode(log);
-                        }).toList();
-                        await prefs.setStringList('ibhwc_diary', updatedDiary);
-
-                        setState(() { _hasCalculated = false; });
-                        Navigator.pop(context);
-                      },
-                      style: ElevatedButton.styleFrom(backgroundColor: Theme.of(context).colorScheme.primary, foregroundColor: Colors.white),
-                      child: const Text('Save Changes'),
-                    ),
-                  ],
-                );
-              }
-          );
-        }
-    );
+    await StorageService.saveProfiles(_profiles);
+    setState(() => _hasCalculated = false);
+    _updateAgeFromProfile();
   }
 
   void _confirmDeleteProfile(String profileId) {
@@ -358,24 +240,21 @@ class _GrowthCalculatorScreenState extends State<GrowthCalculatorScreen> {
             TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
             TextButton(
                 onPressed: () async {
-                  final prefs = await SharedPreferences.getInstance();
-
                   _profiles.removeWhere((p) => p['id'] == profileId);
-                  await prefs.setStringList('ibhwc_profiles', _profiles.map((p) => jsonEncode(p)).toList());
+                  await StorageService.saveProfiles(_profiles);
 
-                  List<String> rawDiary = prefs.getStringList('ibhwc_diary') ?? [];
-                  rawDiary.removeWhere((entry) => jsonDecode(entry)['profileId'] == profileId);
-                  await prefs.setStringList('ibhwc_diary', rawDiary);
+                  List<Map<String, dynamic>> diary = await StorageService.getDiary();
+                  diary.removeWhere((log) => log['profileId'] == profileId);
+                  await StorageService.saveDiary(diary);
 
                   if (_activeProfileId == profileId) {
                     _activeProfileId = null;
-                    await prefs.remove('active_profile_id');
+                    await StorageService.setActiveProfileId(null);
                   }
 
-                  setState(() { _hasCalculated = false; });
-
+                  setState(() => _hasCalculated = false);
+                  _updateAgeFromProfile();
                   Navigator.pop(ctx);
-                  Navigator.pop(context);
                 },
                 child: const Text('Delete Permanently', style: TextStyle(color: Colors.red))
             ),
@@ -385,10 +264,9 @@ class _GrowthCalculatorScreenState extends State<GrowthCalculatorScreen> {
   }
 
   void _switchProfile(String? id) async {
-    final prefs = await SharedPreferences.getInstance();
-    if (id == null) await prefs.remove('active_profile_id');
-    else await prefs.setString('active_profile_id', id);
+    await StorageService.setActiveProfileId(id);
     setState(() { _activeProfileId = id; _hasCalculated = false; });
+    _updateAgeFromProfile();
   }
 
   @override
@@ -402,15 +280,7 @@ class _GrowthCalculatorScreenState extends State<GrowthCalculatorScreen> {
         elevation: 0,
         backgroundColor: Colors.transparent,
         iconTheme: IconThemeData(color: Theme.of(context).colorScheme.primary),
-        title: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Image.asset('assets/images/logo.png', height: 28, width: 28),
-              const SizedBox(width: 8),
-              Text('Growth Calculator', style: TextStyle(fontWeight: FontWeight.w800, color: Theme.of(context).colorScheme.primary))
-            ]
-        ),
+        title: Row(mainAxisAlignment: MainAxisAlignment.center, mainAxisSize: MainAxisSize.min, children: [Image.asset('assets/images/logo.png', height: 28, width: 28), const SizedBox(width: 8), Text('Growth Calculator', style: TextStyle(fontWeight: FontWeight.w800, color: Theme.of(context).colorScheme.primary))]),
         centerTitle: true,
         actions: const [SizedBox(width: 48)],
       ),
@@ -423,8 +293,18 @@ class _GrowthCalculatorScreenState extends State<GrowthCalculatorScreen> {
                 profiles: _profiles,
                 activeProfileId: _activeProfileId,
                 onProfileSelected: _switchProfile,
-                onEditProfile: _showEditProfileDialog,
-                onCreateNew: _showCreateProfileDialog,
+                onCreateNew: () => ProfileDialogs.showCreateProfile(context, onCreate: _saveProfileChanges),
+                onEditProfile: (id) {
+                  final p = _profiles.firstWhere((p) => p['id'] == id);
+                  ProfileDialogs.showEditProfile(
+                      context,
+                      initialName: p['name'],
+                      initialGender: p['gender'],
+                      initialDate: p['birthdate'] != null ? DateTime.parse(p['birthdate']) : null,
+                      onSave: (n, g, d) => _saveProfileChanges(n, g, d, existingId: id),
+                      onDelete: () { Navigator.pop(context); _confirmDeleteProfile(id); }
+                  );
+                },
               ),
 
               Padding(
@@ -441,15 +321,31 @@ class _GrowthCalculatorScreenState extends State<GrowthCalculatorScreen> {
                     const SizedBox(height: 16),
 
                     InputFormCard(
-                      ageController: _ageController, weightController: _weightController, heightController: _heightController,
-                      system: _system, ageUnit: _ageUnit, quickCheckGender: _quickCheckGender, isQuickCheck: _activeProfileId == null,
-                      onAgeUnitChanged: (val) => setState(() => _ageUnit = val),
+                      yearsController: _yearsController, monthsController: _monthsController, weightController: _weightController, heightController: _heightController,
+                      system: _system, quickCheckGender: _quickCheckGender, isQuickCheck: _activeProfileId == null, calcMode: _calcMode,
+                      onCalcModeChanged: (val) => setState(() { _calcMode = val; _hasCalculated = false; if (val == 'ideal_height') _heightController.clear(); if (val == 'ideal_weight') _weightController.clear(); }),
                       onGenderChanged: (val) => setState(() => _quickCheckGender = val),
                       onCalculate: _calculateMetrics,
                     ),
 
                     const SizedBox(height: 24),
-                    if (_hasCalculated) _buildResultsSection(),
+
+                    if (_hasCalculated && _currentAssessment != null)
+                      ResultsSection(
+                        system: _system,
+                        hasActiveProfile: _activeProfileId != null,
+                        data: _currentAssessment!,
+                        bragSnippet: GrowthEngine.generateBragMessage(
+                          data: _currentAssessment!,
+                          childName: _activeProfileId != null ? _profiles.firstWhere((p) => p['id'] == _activeProfileId)['name'] : 'My child',
+                          gender: _currentGender,
+                          system: _system,
+                          isForSocialShare: false,
+                        ),
+                        onSave: _saveRecord,
+                        onShare: _shareResults,
+                      ),
+
                     const SizedBox(height: 40),
                   ],
                 ),
@@ -458,41 +354,6 @@ class _GrowthCalculatorScreenState extends State<GrowthCalculatorScreen> {
           ),
         ),
       ),
-    );
-  }
-
-  Widget _buildResultsSection() {
-    bool canSave = _inputWeight != null && _inputHeight != null;
-    String wUnit = _system == 'imperial' ? 'lbs' : 'kg';
-    String hUnit = _system == 'imperial' ? 'in' : 'cm';
-    String saveBtnText = _activeProfileId == null ? 'Select Profile to Save' : 'Save to Profile Diary';
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        if (canSave) ...[
-          ElevatedButton.icon(
-            onPressed: () {
-              if (_activeProfileId == null) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Please select or create a profile at the top to save data.')));
-              else _saveRecord();
-            },
-            icon: const Icon(Icons.bookmark_add_rounded),
-            label: Text(saveBtnText, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-            style: ElevatedButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 18), backgroundColor: _activeProfileId == null ? Colors.orange.shade600 : Colors.green.shade600, foregroundColor: Colors.white, elevation: 3, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
-          ),
-          const SizedBox(height: 24),
-        ],
-
-        const Padding(padding: EdgeInsets.only(left: 8.0, bottom: 12), child: Text('Assessment', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold))),
-
-        if (_inputWeight != null) AssessmentCard(title: 'Weight Check', value: '$_inputWeight $wUnit', status: _weightStatus, isHealthy: _weightStatus.contains('Healthy'), rangeText: 'Healthy range: ${_formatWeight(_idealWeightMin)} to ${_formatWeight(_idealWeightMax)}', currentVal: _system == 'imperial' ? _inputWeight! / 2.20462 : _inputWeight!, minLimit: _p3Weight, maxLimit: _p97Weight)
-        else GuidanceCard(title: 'Ideal Target Weight', targetValue: _formatWeight(_idealWeightTarget), rangeText: 'Healthy range: ${_formatWeight(_idealWeightMin)} to ${_formatWeight(_idealWeightMax)}', icon: Icons.monitor_weight_outlined, color: Colors.blue),
-
-        const SizedBox(height: 16),
-
-        if (_inputHeight != null) AssessmentCard(title: 'Height Check', value: '$_inputHeight $hUnit', status: _heightStatus, isHealthy: _heightStatus.contains('Healthy'), rangeText: 'Healthy range: ${_formatHeight(_idealHeightMin)} to ${_formatHeight(_idealHeightMax)}', currentVal: _system == 'imperial' ? _inputHeight! * 2.54 : _inputHeight!, minLimit: _p3Height, maxLimit: _p97Height)
-        else GuidanceCard(title: 'Ideal Target Height', targetValue: _formatHeight(_idealHeightTarget), rangeText: 'Healthy range: ${_formatHeight(_idealHeightMin)} to ${_formatHeight(_idealHeightMax)}', icon: Icons.height, color: Colors.teal),
-      ],
     );
   }
 }

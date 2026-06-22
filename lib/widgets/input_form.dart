@@ -1,29 +1,32 @@
 import 'package:flutter/material.dart';
+import 'age_input_field.dart';
 
 class InputFormCard extends StatelessWidget {
-  final TextEditingController ageController;
+  final TextEditingController yearsController;
+  final TextEditingController monthsController;
   final TextEditingController weightController;
   final TextEditingController heightController;
 
   final String system;
-  final String ageUnit;
   final String quickCheckGender;
   final bool isQuickCheck;
 
-  final Function(String) onAgeUnitChanged;
+  final String calcMode;
+  final Function(String) onCalcModeChanged;
   final Function(String) onGenderChanged;
   final VoidCallback onCalculate;
 
   const InputFormCard({
     super.key,
-    required this.ageController,
+    required this.yearsController,
+    required this.monthsController,
     required this.weightController,
     required this.heightController,
     required this.system,
-    required this.ageUnit,
     required this.quickCheckGender,
     required this.isQuickCheck,
-    required this.onAgeUnitChanged,
+    required this.calcMode,
+    required this.onCalcModeChanged,
     required this.onGenderChanged,
     required this.onCalculate,
   });
@@ -52,44 +55,43 @@ class InputFormCard extends StatelessWidget {
               const SizedBox(height: 20),
             ],
 
-            TextField(
-              controller: ageController,
-              keyboardType: const TextInputType.numberWithOptions(decimal: true),
-              decoration: InputDecoration(
-                labelText: 'Age*',
-                hintText: ageUnit == 'months' ? 'e.g. 30' : 'e.g. 2.5',
-                prefixIcon: Icon(Icons.cake_outlined, color: Theme.of(context).colorScheme.primary),
-                suffixIcon: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 8.0),
-                  child: DropdownButtonHideUnderline(
-                    child: DropdownButton<String>(
-                      value: ageUnit,
-                      icon: const Icon(Icons.arrow_drop_down),
-                      style: TextStyle(fontWeight: FontWeight.bold, color: Theme.of(context).colorScheme.primary),
-                      items: const [
-                        DropdownMenuItem(value: 'months', child: Text('Months')),
-                        DropdownMenuItem(value: 'years', child: Text('Years'))
-                      ],
-                      onChanged: (val) => onAgeUnitChanged(val!),
-                    ),
-                  ),
-                ),
-                filled: true, fillColor: Colors.grey.shade50,
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
-                enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: Colors.grey.shade200)),
-                focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: Theme.of(context).colorScheme.primary)),
+            SizedBox(
+              width: double.infinity,
+              child: SegmentedButton<String>(
+                segments: const [
+                  ButtonSegment(value: 'full', label: FittedBox(child: Text('Full Check'))),
+                  ButtonSegment(value: 'ideal_height', label: FittedBox(child: Text('Ideal Height'))),
+                  ButtonSegment(value: 'ideal_weight', label: FittedBox(child: Text('Ideal Weight'))),
+                ],
+                selected: {calcMode},
+                onSelectionChanged: (newSelection) => onCalcModeChanged(newSelection.first),
+                style: ButtonStyle(tapTargetSize: MaterialTapTargetSize.shrinkWrap, visualDensity: VisualDensity.compact),
               ),
             ),
+            const SizedBox(height: 24),
 
-            const SizedBox(height: 16),
-
-            Row(
-              children: [
-                Expanded(child: _buildTextField(context, weightController, weightLabel, '(Optional)', Icons.monitor_weight_outlined)),
-                const SizedBox(width: 16),
-                Expanded(child: _buildTextField(context, heightController, heightLabel, '(Optional)', Icons.height)),
-              ],
+            // Using the separated Widget here
+            AgeInputField(
+                yearsController: yearsController,
+                monthsController: monthsController,
+                showAutoCalcHint: !isQuickCheck
             ),
+
+            const SizedBox(height: 20),
+
+            if (calcMode == 'full')
+              Row(
+                children: [
+                  Expanded(child: _buildTextField(context, heightController, heightLabel, 'Required', Icons.height)),
+                  const SizedBox(width: 16),
+                  Expanded(child: _buildTextField(context, weightController, weightLabel, 'Required', Icons.monitor_weight_outlined)),
+                ],
+              )
+            else if (calcMode == 'ideal_height')
+              _buildTextField(context, weightController, weightLabel, 'Required', Icons.monitor_weight_outlined)
+            else if (calcMode == 'ideal_weight')
+                _buildTextField(context, heightController, heightLabel, 'Required', Icons.height),
+
             const SizedBox(height: 24),
 
             ElevatedButton(
@@ -130,10 +132,10 @@ class InputFormCard extends StatelessWidget {
     );
   }
 
-  Widget _buildTextField(BuildContext context, TextEditingController controller, String label, String hint, IconData icon) {
+  Widget _buildTextField(BuildContext context, TextEditingController controller, String label, String hint, IconData icon, {TextInputType inputType = const TextInputType.numberWithOptions(decimal: true)}) {
     return TextField(
       controller: controller,
-      keyboardType: const TextInputType.numberWithOptions(decimal: true),
+      keyboardType: inputType,
       decoration: InputDecoration(
         labelText: label,
         hintText: hint,

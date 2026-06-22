@@ -1,79 +1,102 @@
 import 'package:flutter/material.dart';
+
 import '../screens/diary_screen.dart';
 import '../screens/settings_screen.dart';
 import '../screens/legal_screen.dart';
+import '../screens/manage_profiles_screen.dart'; // NEW IMPORT
 
 class CustomDrawer extends StatelessWidget {
-  final VoidCallback? onReturn;
+  final VoidCallback onReturn;
 
-  const CustomDrawer({super.key, this.onReturn});
+  const CustomDrawer({super.key, required this.onReturn});
 
   @override
   Widget build(BuildContext context) {
     return Drawer(
-      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.horizontal(right: Radius.circular(30))),
-      child: Container(
-        color: Theme.of(context).colorScheme.surface,
+      child: SafeArea(
         child: Column(
           children: [
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.only(top: 70, bottom: 30, left: 24, right: 24),
-              decoration: BoxDecoration(
-                gradient: LinearGradient(colors: [Theme.of(context).colorScheme.primary, Colors.teal.shade300], begin: Alignment.topLeft, end: Alignment.bottomRight),
-                borderRadius: const BorderRadius.only(bottomRight: Radius.circular(40)),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 32.0, horizontal: 16),
+              child: Row(
                 children: [
-                  Container(
-                    padding: const EdgeInsets.all(10),
-                    decoration: const BoxDecoration(color: Colors.white, shape: BoxShape.circle),
-                    child: ClipOval(
-                      child: Image.asset('assets/images/logo.png', height: 80, width: 80, fit: BoxFit.cover),
+                  Image.asset('assets/images/logo.png', height: 40, width: 40),
+                  const SizedBox(width: 16),
+                  const Expanded(
+                    child: Text(
+                      'Indian Baby\nGrowth Calculator',
+                      style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900),
                     ),
                   ),
-                  const SizedBox(height: 16),
-                  const Text('Indian Baby Height\nWeight Calculator', style: TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.bold)),
-                  const SizedBox(height: 4),
-                  Text('Your Child\'s Growth Partner', style: TextStyle(color: Colors.white.withOpacity(0.9), fontSize: 14)),
                 ],
               ),
             ),
-            const SizedBox(height: 16),
+            const Divider(),
 
-            _buildDrawerItem(context, icon: Icons.calculate_outlined, title: 'Growth Calculator', onTap: () => Navigator.pop(context)),
-            _buildDrawerItem(context, icon: Icons.menu_book_rounded, title: 'My Growth Diary', onTap: () {
-              Navigator.pop(context);
-              Navigator.push(context, MaterialPageRoute(builder: (context) => const DiaryScreen())).then((_) => onReturn?.call());
-            }),
-            _buildDrawerItem(context, icon: Icons.settings_outlined, title: 'Settings', onTap: () {
-              Navigator.pop(context);
-              Navigator.push(context, MaterialPageRoute(builder: (context) => const SettingsScreen())).then((_) => onReturn?.call());
-            }),
+            ListTile(
+              leading: const Icon(Icons.calculate_outlined),
+              title: const Text('Growth Calculator', style: TextStyle(fontWeight: FontWeight.bold)),
+              onTap: () {
+                Navigator.pop(context); // Just close drawer, we are already here
+              },
+            ),
+
+            // NEW: Manage Profiles Menu Item
+            ListTile(
+              leading: const Icon(Icons.family_restroom),
+              title: const Text('Manage Profiles', style: TextStyle(fontWeight: FontWeight.bold)),
+              onTap: () async {
+                Navigator.pop(context);
+                await Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (context) => const ManageProfilesScreen()),
+                );
+                onReturn(); // Refresh Home screen on return in case profiles changed
+              },
+            ),
+
+            ListTile(
+              leading: const Icon(Icons.menu_book),
+              title: const Text('Growth Diary', style: TextStyle(fontWeight: FontWeight.bold)),
+              onTap: () async {
+                Navigator.pop(context);
+                await Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (context) => const DiaryScreen()),
+                );
+                onReturn();
+              },
+            ),
+
+            ListTile(
+              leading: const Icon(Icons.settings),
+              title: const Text('Settings', style: TextStyle(fontWeight: FontWeight.bold)),
+              onTap: () async {
+                Navigator.pop(context);
+                await Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (context) => const SettingsScreen()),
+                );
+                onReturn();
+              },
+            ),
 
             const Spacer(),
             const Divider(),
-
-            _buildDrawerItem(context, icon: Icons.privacy_tip_outlined, title: 'Privacy & Legal', onTap: () {
-              Navigator.pop(context);
-              Navigator.push(context, MaterialPageRoute(builder: (context) => const LegalScreen()));
-            }),
-            const SizedBox(height: 24),
+            ListTile(
+              leading: const Icon(Icons.privacy_tip_outlined),
+              title: const Text('Legal & Data Privacy'),
+              onTap: () {
+                Navigator.pop(context);
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (context) => const LegalScreen()),
+                );
+              },
+            ),
+            const SizedBox(height: 16),
           ],
         ),
-      ),
-    );
-  }
-
-  Widget _buildDrawerItem(BuildContext context, {required IconData icon, required String title, required VoidCallback onTap}) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 4.0),
-      child: ListTile(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        leading: Icon(icon, color: Colors.grey.shade700),
-        title: Text(title, style: const TextStyle(fontWeight: FontWeight.w500, color: Colors.black87)),
-        onTap: onTap,
       ),
     );
   }
