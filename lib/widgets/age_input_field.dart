@@ -19,35 +19,43 @@ class AgeInputField extends StatelessWidget {
       children: [
         Text(
             '  Age*',
-            style: TextStyle(color: Colors.grey.shade700, fontSize: 13, fontWeight: FontWeight.w600)
+            style: TextStyle(color: Colors.grey.shade700, fontSize: 14, fontWeight: FontWeight.w700)
         ),
-        const SizedBox(height: 6),
+        const SizedBox(height: 8),
         Container(
+          // CRITICAL FIX: Upgraded to 24px radius and thicker border to match the fun theme inputs!
           decoration: BoxDecoration(
-            color: Colors.grey.shade50,
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: Colors.grey.shade200),
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(24),
+            border: Border.all(color: const Color(0xFFE2E8F0), width: 2),
           ),
-          padding: const EdgeInsets.symmetric(vertical: 4),
+          padding: const EdgeInsets.symmetric(vertical: 8),
           child: Row(
             children: [
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 16.0),
-                child: Icon(Icons.cake_outlined, color: Theme.of(context).colorScheme.primary),
+                child: Icon(Icons.cake_rounded, color: Theme.of(context).colorScheme.primary),
               ),
               Expanded(
                 child: TextField(
                   controller: yearsController,
                   keyboardType: TextInputType.number,
                   textAlign: TextAlign.center,
-                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.black87),
-                  decoration: InputDecoration(hintText: '0', hintStyle: TextStyle(color: Colors.grey.shade400), border: InputBorder.none),
+                  style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 18, color: Colors.black87),
+                  decoration: InputDecoration(
+                    hintText: '0',
+                    hintStyle: TextStyle(color: Colors.grey.shade400),
+                    border: InputBorder.none,
+                    enabledBorder: InputBorder.none,
+                    focusedBorder: InputBorder.none,
+                    fillColor: Colors.transparent, // Disable standard background
+                  ),
                 ),
               ),
-              Text('Years', style: TextStyle(color: Colors.grey.shade600, fontWeight: FontWeight.w600)),
+              Text('Years', style: TextStyle(color: Colors.grey.shade600, fontWeight: FontWeight.w700)),
 
               const SizedBox(width: 12),
-              Container(width: 1.5, height: 28, color: Colors.grey.shade300),
+              Container(width: 2, height: 32, color: const Color(0xFFE2E8F0)), // Thicker divider
               const SizedBox(width: 12),
 
               Expanded(
@@ -55,20 +63,27 @@ class AgeInputField extends StatelessWidget {
                   controller: monthsController,
                   keyboardType: TextInputType.number,
                   textAlign: TextAlign.center,
-                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.black87),
-                  decoration: InputDecoration(hintText: '0', hintStyle: TextStyle(color: Colors.grey.shade400), border: InputBorder.none),
+                  style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 18, color: Colors.black87),
+                  decoration: InputDecoration(
+                    hintText: '0',
+                    hintStyle: TextStyle(color: Colors.grey.shade400),
+                    border: InputBorder.none,
+                    enabledBorder: InputBorder.none,
+                    focusedBorder: InputBorder.none,
+                    fillColor: Colors.transparent, // Disable standard background
+                  ),
                 ),
               ),
-              Text('Months', style: TextStyle(color: Colors.grey.shade600, fontWeight: FontWeight.w600)),
-              const SizedBox(width: 16),
+              Text('Months', style: TextStyle(color: Colors.grey.shade600, fontWeight: FontWeight.w700)),
+              const SizedBox(width: 20),
             ],
           ),
         ),
 
         if (showAutoCalcHint)
           Padding(
-            padding: const EdgeInsets.only(top: 8.0, left: 8.0),
-            child: Text('Age is calculated automatically, but you can adjust it if needed.', style: TextStyle(fontSize: 11, color: Colors.grey.shade500, fontStyle: FontStyle.italic)),
+            padding: const EdgeInsets.only(top: 10.0, left: 12.0),
+            child: Text('Age is calculated automatically, but you can adjust it.', style: TextStyle(fontSize: 12, color: Colors.grey.shade500, fontWeight: FontWeight.w500)),
           ),
       ],
     );

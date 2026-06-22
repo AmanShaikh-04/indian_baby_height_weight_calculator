@@ -36,7 +36,6 @@ class _GrowthCalculatorScreenState extends State<GrowthCalculatorScreen> {
   bool _isLoading = true;
   bool _hasCalculated = false;
 
-  // The 14 variables have been replaced by this 1 single object!
   AssessmentData? _currentAssessment;
 
   @override
@@ -117,7 +116,6 @@ class _GrowthCalculatorScreenState extends State<GrowthCalculatorScreen> {
     final double? rawWeight = _calcMode != 'ideal_weight' ? double.tryParse(_weightController.text) : null;
     final double? rawHeight = _calcMode != 'ideal_height' ? double.tryParse(_heightController.text) : null;
 
-    // Strict UI Validation Logic
     if (_yearsController.text.isEmpty && _monthsController.text.isEmpty) { ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('⚠️ Please enter the child\'s age in years and/or months.'))); return; }
     if (months > 11) { ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('⚠️ Months should be between 0 and 11. Increase the Year instead.'))); return; }
     if (_calcMode == 'full' && (rawWeight == null || rawHeight == null)) { ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('⚠️ Please provide both weight and height for a full check.'))); return; }
@@ -129,7 +127,6 @@ class _GrowthCalculatorScreenState extends State<GrowthCalculatorScreen> {
 
     if (ageInYears < 0 || ageInYears > 18.5) { ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('⚠️ This app uses WHO/IAP data strictly for children aged 0 to 18 years.'))); return; }
 
-    // Execute Math Engine
     try {
       final AssessmentData result = GrowthEngine.evaluate(
         growthData: _growthData!,
@@ -145,7 +142,6 @@ class _GrowthCalculatorScreenState extends State<GrowthCalculatorScreen> {
         _currentAssessment = result;
       });
     } catch (errorMsg) {
-      // Catch validation errors thrown by the Engine
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(errorMsg.toString())));
     }
   }
@@ -273,14 +269,25 @@ class _GrowthCalculatorScreenState extends State<GrowthCalculatorScreen> {
   Widget build(BuildContext context) {
     if (_isLoading) return const Scaffold(body: Center(child: CircularProgressIndicator()));
 
+    // Pull dynamic colors from the active theme
+    final themeColor = Theme.of(context).colorScheme.primary;
+
     return Scaffold(
       backgroundColor: Theme.of(context).colorScheme.surface,
       drawer: CustomDrawer(onReturn: _loadSettingsAndProfiles),
       appBar: AppBar(
         elevation: 0,
         backgroundColor: Colors.transparent,
-        iconTheme: IconThemeData(color: Theme.of(context).colorScheme.primary),
-        title: Row(mainAxisAlignment: MainAxisAlignment.center, mainAxisSize: MainAxisSize.min, children: [Image.asset('assets/images/logo.png', height: 28, width: 28), const SizedBox(width: 8), Text('Growth Calculator', style: TextStyle(fontWeight: FontWeight.w800, color: Theme.of(context).colorScheme.primary))]),
+        iconTheme: IconThemeData(color: themeColor),
+        title: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Image.asset('assets/images/logo.png', height: 28, width: 28),
+              const SizedBox(width: 8),
+              Text('Growth Calculator', style: TextStyle(color: themeColor)) // Inherits weight from AppBarTheme
+            ]
+        ),
         centerTitle: true,
         actions: const [SizedBox(width: 48)],
       ),
@@ -313,10 +320,31 @@ class _GrowthCalculatorScreenState extends State<GrowthCalculatorScreen> {
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
                     const SizedBox(height: 16),
+
+                    // Adaptive Settings Info Box - Updated for Fun Theme Shapes
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                      decoration: BoxDecoration(color: Colors.blue.shade50, borderRadius: BorderRadius.circular(12), border: Border.all(color: Colors.blue.shade100)),
-                      child: Row(children: [Icon(Icons.settings, size: 20, color: Colors.blue.shade700), const SizedBox(width: 12), Expanded(child: Text('Using ${(_system == 'metric' ? 'Metric (kg/cm)' : 'Imperial (lbs/in)')} System. Change this in the Settings Menu.', style: TextStyle(fontSize: 12, color: Colors.blue.shade900)))]),
+                      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+                      decoration: BoxDecoration(
+                          color: themeColor.withOpacity(0.08),
+                          borderRadius: BorderRadius.circular(24), // Increased from 12 to 24 for the bouncy look
+                          border: Border.all(color: themeColor.withOpacity(0.2), width: 2) // Thicker border
+                      ),
+                      child: Row(
+                          children: [
+                            Icon(Icons.settings_rounded, size: 24, color: themeColor), // Used rounded icon
+                            const SizedBox(width: 16),
+                            Expanded(
+                                child: Text(
+                                    'Using ${(_system == 'metric' ? 'Metric (kg/cm)' : 'Imperial (lbs/in)')} System. Change this in Settings.',
+                                    style: TextStyle(
+                                        fontSize: 13,
+                                        color: themeColor.withOpacity(0.9),
+                                        fontWeight: FontWeight.w700 // Bolder text
+                                    )
+                                )
+                            )
+                          ]
+                      ),
                     ),
                     const SizedBox(height: 16),
 

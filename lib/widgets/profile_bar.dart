@@ -26,14 +26,14 @@ class ProfileHorizontalBar extends StatelessWidget {
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              const Text('Who are we checking?', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.black87)),
+              const Text('Who are we checking?', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 18, color: Colors.black87)),
               if (profiles.isNotEmpty)
-                Text('Long-press a child to edit', style: TextStyle(fontSize: 11, color: Colors.grey.shade500, fontStyle: FontStyle.italic)),
+                Text('Long-press a child to edit', style: TextStyle(fontSize: 12, color: Colors.grey.shade500, fontStyle: FontStyle.italic)),
             ],
           ),
         ),
         SizedBox(
-          height: 100,
+          height: 110,
           child: ListView(
             scrollDirection: Axis.horizontal,
             padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -45,7 +45,7 @@ class ProfileHorizontalBar extends StatelessWidget {
                   icon: p['gender'] == 'boys' ? Icons.boy : Icons.girl,
                   color: p['gender'] == 'boys' ? Colors.blue : Colors.pink
               )),
-              _buildAvatar(id: 'ADD', name: 'Add Child', icon: Icons.add, color: Colors.green),
+              _buildAvatar(id: 'ADD', name: 'Add Child', icon: Icons.add_reaction_rounded, color: Colors.green),
             ],
           ),
         ),
@@ -71,43 +71,42 @@ class ProfileHorizontalBar extends StatelessWidget {
       },
       child: Container(
         width: 80,
-        margin: const EdgeInsets.symmetric(horizontal: 4),
+        margin: const EdgeInsets.symmetric(horizontal: 6),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Container(
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                border: Border.all(color: isSelected ? color.shade700 : Colors.transparent, width: 3),
-                boxShadow: isSelected ? [BoxShadow(color: color.shade200, blurRadius: 8, spreadRadius: 2)] : null,
+                border: Border.all(color: isSelected ? color.shade400 : Colors.transparent, width: 4), // Thicker, softer border
               ),
               child: Stack(
                 children: [
                   CircleAvatar(
-                    radius: 30,
-                    backgroundColor: isSelected ? color.shade100 : Colors.grey.shade100,
-                    child: Icon(icon, size: 30, color: isSelected ? color.shade800 : Colors.grey.shade600),
+                    radius: 32, // Slightly larger avatar
+                    backgroundColor: isSelected ? color.shade100 : Colors.grey.shade200,
+                    child: Icon(icon, size: 32, color: isSelected ? color.shade800 : Colors.grey.shade500),
                   ),
                   if (id != null && id != 'ADD' && isSelected)
                     Positioned(
                       bottom: 0,
                       right: 0,
                       child: Container(
-                        padding: const EdgeInsets.all(4),
+                        padding: const EdgeInsets.all(5),
                         decoration: BoxDecoration(color: color.shade700, shape: BoxShape.circle, border: Border.all(color: Colors.white, width: 2)),
-                        child: const Icon(Icons.edit, size: 10, color: Colors.white),
+                        child: const Icon(Icons.edit, size: 12, color: Colors.white),
                       ),
                     )
                 ],
               ),
             ),
-            const SizedBox(height: 6),
+            const SizedBox(height: 8),
             Text(
                 name,
                 textAlign: TextAlign.center,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                style: TextStyle(fontSize: 12, fontWeight: isSelected ? FontWeight.bold : FontWeight.normal, color: isSelected ? color.shade800 : Colors.grey.shade700)
+                style: TextStyle(fontSize: 13, fontWeight: isSelected ? FontWeight.w900 : FontWeight.w600, color: isSelected ? color.shade800 : Colors.grey.shade600)
             ),
           ],
         ),

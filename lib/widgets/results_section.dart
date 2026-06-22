@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
 import 'growth_cards.dart';
-import '../models/assessment_data.dart'; // Import your new Model
+import '../models/assessment_data.dart';
 
 class ResultsSection extends StatelessWidget {
   final String system;
   final bool hasActiveProfile;
-  final AssessmentData data; // Bundled!
+  final AssessmentData data;
   final String bragSnippet;
   final VoidCallback onSave;
   final VoidCallback onShare;
@@ -40,8 +40,13 @@ class ResultsSection extends StatelessWidget {
               else onSave();
             },
             icon: const Icon(Icons.bookmark_add_rounded),
-            label: Text(saveBtnText, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-            style: ElevatedButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 18), backgroundColor: !hasActiveProfile ? Colors.orange.shade600 : Colors.green.shade600, foregroundColor: Colors.white, elevation: 3, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
+            label: Text(saveBtnText),
+            // Removed hardcoded shape so it inherits the pill button theme from main.dart
+            style: ElevatedButton.styleFrom(
+              padding: const EdgeInsets.symmetric(vertical: 18),
+              backgroundColor: !hasActiveProfile ? Colors.orange.shade500 : Theme.of(context).colorScheme.primary, // Using theme primary color when active
+              foregroundColor: Colors.white,
+            ),
           ),
           const SizedBox(height: 24),
         ],
@@ -49,7 +54,7 @@ class ResultsSection extends StatelessWidget {
         ShareBragCard(displaySnippet: bragSnippet, onShare: onShare),
         const SizedBox(height: 24),
 
-        const Padding(padding: EdgeInsets.only(left: 8.0, bottom: 12), child: Text('Assessment', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold))),
+        const Padding(padding: EdgeInsets.only(left: 8.0, bottom: 12), child: Text('Assessment', style: TextStyle(fontSize: 22, fontWeight: FontWeight.w900))),
 
         if (data.inputHeight != null) AssessmentCard(title: 'Height Check', value: '${data.inputHeight} $hUnit', status: data.heightStatus, isHealthy: data.heightStatus.contains('Healthy'), rangeText: 'Healthy range: ${_formatHeight(data.idealHeightMin)} to ${_formatHeight(data.idealHeightMax)}', currentVal: system == 'imperial' ? data.inputHeight! * 2.54 : data.inputHeight!, minLimit: data.p3Height, maxLimit: data.p97Height)
         else GuidanceCard(title: 'Ideal Target Height', targetValue: _formatHeight(data.idealHeightTarget), rangeText: 'Healthy range: ${_formatHeight(data.idealHeightMin)} to ${_formatHeight(data.idealHeightMax)}', icon: Icons.height, color: Colors.teal),

@@ -45,7 +45,6 @@ class _ManageProfilesScreenState extends State<ManageProfilesScreen> {
 
   Future<void> _saveProfile(String name, String gender, DateTime date, {String? existingId}) async {
     if (existingId == null) {
-      // Create New
       final newProfile = {
         'id': DateTime.now().millisecondsSinceEpoch.toString(),
         'name': name,
@@ -54,18 +53,15 @@ class _ManageProfilesScreenState extends State<ManageProfilesScreen> {
       };
       _profiles.add(newProfile);
 
-      // Auto-set as active if it's the very first profile
       if (_profiles.length == 1) {
         await StorageService.setActiveProfileId(newProfile['id']!);
       }
     } else {
-      // Update Existing
       final idx = _profiles.indexWhere((p) => p['id'] == existingId);
       _profiles[idx]['name'] = name;
       _profiles[idx]['gender'] = gender;
       _profiles[idx]['birthdate'] = date.toIso8601String();
 
-      // Cascade update to Diary entries
       List<Map<String, dynamic>> diary = await StorageService.getDiary();
       for (var log in diary) {
         if (log['profileId'] == existingId) {
@@ -84,21 +80,19 @@ class _ManageProfilesScreenState extends State<ManageProfilesScreen> {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Are you sure?'),
-        content: const Text('This will permanently delete this child and all their saved growth records.'),
+        title: const Text('Are you sure?', style: TextStyle(fontWeight: FontWeight.w900)),
+        content: const Text('This will permanently delete this child and all their saved growth records.', style: TextStyle(fontWeight: FontWeight.w500)),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel', style: TextStyle(fontWeight: FontWeight.bold))),
           TextButton(
             onPressed: () async {
               _profiles.removeWhere((p) => p['id'] == profileId);
               await StorageService.saveProfiles(_profiles);
 
-              // Cascade delete from diary
               List<Map<String, dynamic>> diary = await StorageService.getDiary();
               diary.removeWhere((log) => log['profileId'] == profileId);
               await StorageService.saveDiary(diary);
 
-              // Clear active profile if the deleted one was currently active
               String? activeId = await StorageService.getActiveProfileId();
               if (activeId == profileId) {
                 await StorageService.setActiveProfileId(null);
@@ -107,7 +101,7 @@ class _ManageProfilesScreenState extends State<ManageProfilesScreen> {
               _loadProfiles();
               if (mounted) Navigator.pop(ctx);
             },
-            child: const Text('Delete Permanently', style: TextStyle(color: Colors.red)),
+            child: Text('Delete Permanently', style: TextStyle(color: Theme.of(context).colorScheme.tertiary, fontWeight: FontWeight.bold)),
           ),
         ],
       ),
@@ -117,9 +111,9 @@ class _ManageProfilesScreenState extends State<ManageProfilesScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.grey.shade50,
+      backgroundColor: Theme.of(context).colorScheme.surface, // Dynamically use soft background
       appBar: AppBar(
-        title: const Text('Manage Profiles', style: TextStyle(fontWeight: FontWeight.bold)),
+        title: const Text('Manage Profiles', style: TextStyle(fontWeight: FontWeight.w900)),
         backgroundColor: Colors.transparent,
         elevation: 0,
         foregroundColor: Theme.of(context).colorScheme.primary,
@@ -131,53 +125,56 @@ class _ManageProfilesScreenState extends State<ManageProfilesScreen> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(Icons.face_retouching_natural, size: 80, color: Colors.grey.shade300),
+            Icon(Icons.face_retouching_natural_rounded, size: 80, color: Colors.grey.shade300),
             const SizedBox(height: 16),
-            Text('No profiles found.', style: TextStyle(color: Colors.grey.shade600, fontSize: 16)),
+            Text('No profiles found.', style: TextStyle(color: Colors.grey.shade600, fontSize: 18, fontWeight: FontWeight.w600)),
           ],
         ),
       )
           : ListView.builder(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(20),
         itemCount: _profiles.length,
         itemBuilder: (context, index) {
           final p = _profiles[index];
           bool isBoy = p['gender'] == 'boys';
           return Card(
-            elevation: 2,
-            margin: const EdgeInsets.only(bottom: 16),
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-            child: ListTile(
-              contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
-              leading: CircleAvatar(
-                backgroundColor: isBoy ? Colors.blue.shade100 : Colors.pink.shade100,
-                child: Icon(
-                  isBoy ? Icons.boy : Icons.girl,
-                  color: isBoy ? Colors.blue.shade700 : Colors.pink.shade700,
-                ),
-              ),
-              title: Text(p['name'], style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
-              subtitle: Text(_calculateAgeString(p['birthdate'])),
-              trailing: Wrap(
-                spacing: 4,
-                children: [
-                  IconButton(
-                    icon: Icon(Icons.edit, color: Theme.of(context).colorScheme.primary),
-                    onPressed: () {
-                      ProfileDialogs.showEditProfile(
-                        context,
-                        initialName: p['name'],
-                        initialGender: p['gender'],
-                        initialDate: p['birthdate'] != null ? DateTime.parse(p['birthdate']) : null,
-                        onSave: (n, g, d) => _saveProfile(n, g, d, existingId: p['id']),
-                        onDelete: () {
-                          Navigator.pop(context);
-                          _confirmDelete(p['id']);
-                        },
-                      );
-                    },
+            // STRIPPED: Removed elevation and shape overrides.
+            // It automatically becomes a bouncy card.
+            margin: const EdgeInsets.only(bottom: 20),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 8.0), // Extra padding for the big 32px corners
+              child: ListTile(
+                contentPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
+                leading: Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                      color: isBoy ? Colors.blue.shade100 : Colors.pink.shade100,
+                      shape: BoxShape.circle
                   ),
-                ],
+                  child: Icon(
+                    isBoy ? Icons.boy : Icons.girl,
+                    size: 28,
+                    color: isBoy ? Colors.blue.shade700 : Colors.pink.shade700,
+                  ),
+                ),
+                title: Text(p['name'], style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 20)),
+                subtitle: Text(_calculateAgeString(p['birthdate']), style: TextStyle(fontWeight: FontWeight.w600, color: Colors.grey.shade600)),
+                trailing: IconButton(
+                  icon: Icon(Icons.edit_rounded, color: Theme.of(context).colorScheme.primary, size: 28),
+                  onPressed: () {
+                    ProfileDialogs.showEditProfile(
+                      context,
+                      initialName: p['name'],
+                      initialGender: p['gender'],
+                      initialDate: p['birthdate'] != null ? DateTime.parse(p['birthdate']) : null,
+                      onSave: (n, g, d) => _saveProfile(n, g, d, existingId: p['id']),
+                      onDelete: () {
+                        Navigator.pop(context);
+                        _confirmDelete(p['id']);
+                      },
+                    );
+                  },
+                ),
               ),
             ),
           );
@@ -188,8 +185,9 @@ class _ManageProfilesScreenState extends State<ManageProfilesScreen> {
           ProfileDialogs.showCreateProfile(context, onCreate: (n, g, d) => _saveProfile(n, g, d));
         },
         backgroundColor: Theme.of(context).colorScheme.primary,
-        icon: const Icon(Icons.add, color: Colors.white),
-        label: const Text('Add Profile', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)), // Pill button shape
+        icon: const Icon(Icons.add_rounded, color: Colors.white, size: 24),
+        label: const Text('Add Profile', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w900, fontSize: 16)),
       ),
     );
   }

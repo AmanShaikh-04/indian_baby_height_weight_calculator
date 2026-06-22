@@ -11,6 +11,18 @@ class StorageService {
     return isFirst;
   }
 
+  // --- NEW: Theme Management ---
+  static Future<String> getAppTheme() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getString('app_theme') ?? 'fun'; // 'fun' is default
+  }
+
+  static Future<void> setAppTheme(String theme) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('app_theme', theme);
+  }
+  // -----------------------------
+
   static Future<String> getSystemSetting() async {
     final prefs = await SharedPreferences.getInstance();
     return prefs.getString('setting_system') ?? 'metric';

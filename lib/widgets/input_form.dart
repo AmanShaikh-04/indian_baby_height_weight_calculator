@@ -37,14 +37,16 @@ class InputFormCard extends StatelessWidget {
     String heightLabel = system == 'imperial' ? 'Height (in)' : 'Height (cm)';
 
     return Card(
+      // We removed elevation and shape here so it inherits the 32px bouncy radius from main.dart
       child: Padding(
-        padding: const EdgeInsets.all(20.0),
+        padding: const EdgeInsets.all(24.0),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             if (isQuickCheck) ...[
               Container(
-                decoration: BoxDecoration(color: Colors.grey.shade100, borderRadius: BorderRadius.circular(12)),
+                // Updated radius to 24 to match the new playful theme
+                decoration: BoxDecoration(color: Theme.of(context).colorScheme.surface, borderRadius: BorderRadius.circular(24)),
                 child: Row(
                   children: [
                     _buildGenderToggle('boys', 'Boy', Icons.boy, Colors.blue),
@@ -70,7 +72,6 @@ class InputFormCard extends StatelessWidget {
             ),
             const SizedBox(height: 24),
 
-            // Using the separated Widget here
             AgeInputField(
                 yearsController: yearsController,
                 monthsController: monthsController,
@@ -92,18 +93,12 @@ class InputFormCard extends StatelessWidget {
             else if (calcMode == 'ideal_weight')
                 _buildTextField(context, heightController, heightLabel, 'Required', Icons.height),
 
-            const SizedBox(height: 24),
+            const SizedBox(height: 32),
 
             ElevatedButton(
               onPressed: onCalculate,
-              style: ElevatedButton.styleFrom(
-                padding: const EdgeInsets.symmetric(vertical: 16),
-                backgroundColor: Theme.of(context).colorScheme.primary,
-                foregroundColor: Colors.white,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                elevation: 2,
-              ),
-              child: const Text('Calculate Growth', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+              // Removed the hardcoded style! It will now automatically pull the chunky shape and colors from main.dart
+              child: const Text('Calculate Growth', style: TextStyle(fontSize: 18)),
             ),
           ],
         ),
@@ -117,8 +112,8 @@ class InputFormCard extends StatelessWidget {
       child: GestureDetector(
         onTap: () => onGenderChanged(genderValue),
         child: Container(
-          padding: const EdgeInsets.symmetric(vertical: 12),
-          decoration: BoxDecoration(color: isSelected ? color.shade100 : Colors.transparent, borderRadius: BorderRadius.circular(12)),
+          padding: const EdgeInsets.symmetric(vertical: 14),
+          decoration: BoxDecoration(color: isSelected ? color.shade100 : Colors.transparent, borderRadius: BorderRadius.circular(24)), // 24px Pill shape
           child: Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
@@ -136,14 +131,12 @@ class InputFormCard extends StatelessWidget {
     return TextField(
       controller: controller,
       keyboardType: inputType,
+      // CRITICAL FIX: Removed all hardcoded borders, fills, and radii.
+      // It will now inherit the exact bouncy theme we set globally!
       decoration: InputDecoration(
         labelText: label,
         hintText: hint,
-        prefixIcon: Icon(icon, color: Colors.grey.shade400),
-        filled: true, fillColor: Colors.grey.shade50,
-        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
-        enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: Colors.grey.shade200)),
-        focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: Theme.of(context).colorScheme.primary)),
+        prefixIcon: Icon(icon),
       ),
     );
   }
