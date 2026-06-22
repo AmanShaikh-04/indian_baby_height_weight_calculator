@@ -1,0 +1,47 @@
+name: indian_baby_height_weight_calculator
+description: "Your Child's Growth Partner"
+publish_to: 'none'
+
+version: 1.0.0+1
+
+environment:
+  sdk: ^3.12.2
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  shared_preferences: ^2.2.2
+  intl: ^0.19.0
+  pdf: ^3.11.1
+  printing: ^5.12.0
+  shimmer: ^3.0.0
+  cupertino_icons: ^1.0.8
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+  flutter_launcher_icons: ^0.13.1
+  flutter_native_splash: ^2.4.1
+  change_app_package_name: ^1.5.0
+
+flutter_launcher_icons:
+  android: "launcher_icon"
+  ios: true
+  image_path: "assets/images/logoIcon.png"
+  adaptive_icon_background: "#FFFFFF"
+  adaptive_icon_foreground: "assets/images/logoIcon.png"
+
+flutter:
+  uses-material-design: true
+  assets:
+    - assets/iap_data.json
+    - assets/images/
+
+flutter_native_splash:
+  color: "#FFFFFF"
+  image: "assets/images/logoIcon.png"
+  android_12:
+    image: "assets/images/logoIcon.png"
+    color: "#FFFFFF"
